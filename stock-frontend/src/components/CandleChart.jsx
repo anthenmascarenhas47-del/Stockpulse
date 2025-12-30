@@ -10,10 +10,23 @@ export default function CandleChart({ symbol }) {
 
     containerRef.current.innerHTML = "";
 
+    // Inside your CandleChart.jsx useEffect
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height: 450,
-      layout: { backgroundColor: "#1E293B", textColor: "#ffffff" },
+      layout: {
+        background: { color: "transparent" }, // Let the parent container color show through
+        textColor: "#94a3b8",
+      },
+      grid: {
+        vertLines: { color: "#1e293b" },
+        horzLines: { color: "#1e293b" },
+      },
+      crosshair: {
+        mode: 0,
+        vertLine: { color: "#6366f1", labelBackgroundColor: "#6366f1" },
+        horzLine: { color: "#6366f1", labelBackgroundColor: "#6366f1" },
+      },
     });
 
     const candleSeries = chart.addCandlestickSeries();

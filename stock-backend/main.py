@@ -29,7 +29,7 @@ if not os.path.exists(MODEL_DIR):
     os.makedirs(MODEL_DIR)
 
 TRAIN_TICKERS = ["RELIANCE.NS", "TCS.NS", "INFY.NS"]
-FEATURES = ["ema9", "ema21", "rsi", "Volume"]
+FEATURES = ["ema9", "ema21", "ema_diff", "rsi", "atr", "vol_ratio"]
 
 
 # ------------- HELPERS ----------------
@@ -70,16 +70,24 @@ def download_intraday(symbol):
 
 
 def make_features(df: pd.DataFrame):
-    # Convert to standard float and ensure 1D
+    # Standardize columns
     for col in ["Open", "High", "Low", "Close", "Volume"]:
         df[col] = pd.to_numeric(df[col].to_numpy().flatten(), errors='coerce')
 
-    # Calculate indicators
+    # 1. Trend Indicators
     df["ema9"] = df["Close"].ewm(span=9).mean()
     df["ema21"] = df["Close"].ewm(span=21).mean()
-    
-    # .squeeze() ensures the ta library receives a 1D Series
+    df["ema_diff"] = (df["ema9"] - df["ema21"]) / df["ema21"] # Percentage gap
+
+    # 2. Momentum
     df["rsi"] = ta.momentum.RSIIndicator(df["Close"].squeeze()).rsi()
+    
+    # 3. Volatility (ATR - Average True Range)
+    df["atr"] = ta.volatility.AverageTrueRange(df["High"], df["Low"], df["Close"]).average_true_range()
+    
+    # 4. Volume Momentum
+    df["vol_sma"] = df["Volume"].rolling(window=20).mean()
+    df["vol_ratio"] = df["Volume"] / df["vol_sma"]
 
     df.dropna(inplace=True)
     return df
