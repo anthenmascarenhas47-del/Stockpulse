@@ -1,4 +1,31 @@
+import { useEffect, useState } from "react";
+
 export default function Navbar() {
+  const [status, setStatus] = useState("Checking...");
+
+  function checkStatus() {
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+
+    let s = "Closed";
+
+    if ((h === 9 && m >= 0 && m < 15)) s = "Pre-Open";
+    else if (
+      (h > 9 || (h === 9 && m >= 15)) &&
+      (h < 15 || (h === 15 && m <= 30))
+    )
+      s = "Live";
+
+    setStatus(s);
+  }
+
+  useEffect(() => {
+    checkStatus();
+    const timer = setInterval(checkStatus, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <nav className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
       <div className="flex items-center gap-2">
@@ -9,15 +36,26 @@ export default function Navbar() {
           StockPulse
         </span>
       </div>
+
       <div className="hidden md:flex gap-6 text-sm font-medium text-slate-400">
         <a href="#" className="hover:text-blue-400 transition-colors">Market</a>
         <a href="#" className="hover:text-blue-400 transition-colors">Watchlist</a>
         <a href="#" className="text-white border-b-2 border-blue-500 pb-1">Dashboard</a>
       </div>
-      <div className="flex items-center gap-4">
-        <div className="text-xs text-slate-500 text-right hidden sm:block">
-          Market Status: <span className="text-green-500">Live</span>
-        </div>
+
+      <div className="text-xs text-slate-500 text-right hidden sm:block">
+        Market Status:{" "}
+        <span
+          className={
+            status === "Live"
+              ? "text-green-500"
+              : status === "Pre-Open"
+              ? "text-yellow-400"
+              : "text-red-500"
+          }
+        >
+          {status}
+        </span>
       </div>
     </nav>
   );
