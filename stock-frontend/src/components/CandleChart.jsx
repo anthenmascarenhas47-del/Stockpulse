@@ -50,31 +50,32 @@ export default function CandleChart({ symbol }) {
     });
 
     async function load() {
-      const res = await getChart(symbol);
+  // Use daily historical 1-year data
+  const res = await getChart(symbol); // default daily
+  if (!res || !res.data) return;
 
-      if (!res || !res.data) return;
+  const candles = res.data.map((d) => ({
+    time: Math.floor(new Date(d.Date).getTime() / 1000),
+    open: d.Open,
+    high: d.High,
+    low: d.Low,
+    close: d.Close,
+  }));
 
-      const candles = res.data.map((d) => ({
+  candleSeries.setData(candles);
+
+  if (res.data[0]?.ema9 !== undefined) {
+    emaSeries.setData(
+      res.data.map((d) => ({
         time: Math.floor(new Date(d.Date).getTime() / 1000),
-        open: d.Open,
-        high: d.High,
-        low: d.Low,
-        close: d.Close,
-      }));
+        value: d.ema9,
+      }))
+    );
+  }
 
-      candleSeries.setData(candles);
+  chart.timeScale().fitContent();
 
-      // Draw EMA only if available
-      if (res.data[0]?.ema9 !== undefined) {
-        emaSeries.setData(
-          res.data.map((d) => ({
-            time: Math.floor(new Date(d.Date).getTime() / 1000),
-            value: d.ema9,
-          }))
-        );
-      }
 
-      chart.timeScale().fitContent();
     }
 
     load();
