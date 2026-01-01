@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NavLink } from "react-router-dom";
 
 export default function Navbar() {
   const [status, setStatus] = useState("Checking...");
@@ -10,11 +11,8 @@ export default function Navbar() {
 
     let s = "Closed";
 
-    if ((h === 9 && m >= 0 && m < 15)) s = "Pre-Open";
-    else if (
-      (h > 9 || (h === 9 && m >= 15)) &&
-      (h < 15 || (h === 15 && m <= 30))
-    )
+    if (h === 9 && m >= 0 && m < 15) s = "Pre-Open";
+    else if ((h > 9 || (h === 9 && m >= 15)) && (h < 15 || (h === 15 && m <= 30)))
       s = "Live";
 
     setStatus(s);
@@ -38,9 +36,39 @@ export default function Navbar() {
       </div>
 
       <div className="hidden md:flex gap-6 text-sm font-medium text-slate-400">
-        <a href="#" className="hover:text-blue-400 transition-colors">Market</a>
-        <a href="#" className="hover:text-blue-400 transition-colors">Watchlist</a>
-        <a href="#" className="text-white border-b-2 border-blue-500 pb-1">Dashboard</a>
+        <NavLink
+          to="/market"
+          className={({ isActive }) =>
+            isActive
+              ? "text-white border-b-2 border-blue-500 pb-1"
+              : "hover:text-blue-400"
+          }
+        >
+          Market
+        </NavLink>
+
+        <NavLink
+          to="/watchlist"
+          className={({ isActive }) =>
+            isActive
+              ? "text-white border-b-2 border-blue-500 pb-1"
+              : "hover:text-blue-400"
+          }
+        >
+          Watchlist
+        </NavLink>
+
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            isActive
+              ? "text-white border-b-2 border-blue-500 pb-1"
+              : "hover:text-blue-400"
+          }
+        >
+          Dashboard
+        </NavLink>
       </div>
 
       <div className="text-xs text-slate-500 text-right hidden sm:block">

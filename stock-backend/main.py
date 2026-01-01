@@ -138,6 +138,10 @@ async def search(q: str = Query("")):
     results = [c for c in COMPANIES if q in c["name"].lower() or q in c["symbol"].lower()]
     return results[:15]
 
+@app.get("/market")
+async def get_market():
+    return COMPANIES
+
 @app.get("/chart_data/{symbol}")
 async def chart_data(symbol: str, interval: str = "1d"):
     """
@@ -177,3 +181,11 @@ async def analyze(symbol: str):
         ),
         "market_closed": closed
     }
+
+@app.get("/company/{symbol}")
+async def company(symbol: str):
+    for c in COMPANIES:
+        if c["symbol"] == symbol:
+            return c
+
+    raise HTTPException(status_code=404, detail="Company not found")
