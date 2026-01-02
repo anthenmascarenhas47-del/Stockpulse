@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 import joblib, os, time
 import yfinance as yf
 import pandas as pd
@@ -52,11 +51,9 @@ def safe_download(symbol: str, interval: str, period: str):
     df.dropna(inplace=True)
     return df
 
-# Daily historical data for 1 year
 def download_daily(symbol):
     return safe_download(symbol, "1d", "1y")
 
-# Intraday live data for current session
 def download_intraday(symbol):
     return safe_download(symbol, "1m", "1d")
 
@@ -125,10 +122,8 @@ features = joblib.load(FEATURES_PATH)
 def is_market_closed(df):
     if df.empty: return True
     last = pd.to_datetime(df.index[-1])
-
     if last.tz is None: last = last.tz_localize("UTC")
     else: last = last.tz_convert("UTC")
-
     return (pd.Timestamp.utcnow() - last).total_seconds() > 30 * 60
 
 # ---------------- ROUTES ----------------
@@ -140,13 +135,58 @@ async def search(q: str = Query("")):
 
 @app.get("/market")
 async def get_market():
-    return COMPANIES
+    """
+    FAST market endpoint.
+    No Yahoo .info calls (no sector, no market cap fetch).
+    """
+
+    symbols = [c["symbol"] for c in COMPANIES]
+
+    # Bulk price download (this is fast + parallel)
+    try:
+        data = yf.download(
+            symbols,
+            period="5d",
+            interval="1d",
+            group_by="ticker",
+            progress=False,
+            threads=True,
+        )
+    except Exception as e:
+        print("Bulk download error:", e)
+        data = pd.DataFrame()
+
+    result = []
+
+    for c in COMPANIES:
+        sym = c["symbol"]
+        price = 0.0
+
+        # Extract price from bulk dataframe
+        try:
+            if len(symbols) > 1 and not data.empty and sym in data.columns.levels[0]:
+                series = data[sym]["Close"]
+                if not series.empty:
+                    price = float(series.iloc[-1])
+            elif not data.empty:
+                price = float(data["Close"].iloc[-1])
+        except:
+            pass
+
+        result.append({
+            "name": c["name"],
+            "symbol": sym,
+            "price": price,
+
+            # kept only if it already exists in COMPANIES (no API call)
+            "sector": c.get("sector"),
+        })
+
+    return result
+
 
 @app.get("/chart_data/{symbol}")
 async def chart_data(symbol: str, interval: str = "1d"):
-    """
-    interval: '1d' for historical, '1m' for live session
-    """
     if interval == "1m":
         df = download_intraday(symbol)
     else:
@@ -161,31 +201,40 @@ async def chart_data(symbol: str, interval: str = "1d"):
 
 @app.get("/analyze/{symbol}")
 async def analyze(symbol: str):
-    df = download_intraday(symbol)
-    df = make_features(df)
+    try:
+        df = download_intraday(symbol)
+        df = make_features(df)
+        closed = is_market_closed(df)
 
-    closed = is_market_closed(df)
+        X = df[features].tail(1)
+        probs = model.predict_proba(X)[0]
 
-    X = df[features].tail(1)
-    probs = model.predict_proba(X)[0]
-
-    return {
-        "symbol": symbol,
-        "price": float(df["Close"].iloc[-1]),
-        "prob_bull": float(probs[1]),
-        "prob_bear": float(probs[0]),
-        "trend": (
-            "BUY" if probs[1] > 0.6
-            else "SELL" if probs[0] > 0.6
-            else "NO TRADE"
-        ),
-        "market_closed": closed
-    }
+        return {
+            "symbol": symbol,
+            "price": float(df["Close"].iloc[-1]),
+            "prob_bull": float(probs[1]),
+            "prob_bear": float(probs[0]),
+            "trend": (
+                "BUY" if probs[1] > 0.6
+                else "SELL" if probs[0] > 0.6
+                else "NO TRADE"
+            ),
+            "market_closed": closed
+        }
+    except Exception:
+        # Fallback if analysis fails (e.g. not enough data)
+        return {
+            "symbol": symbol,
+            "price": 0,
+            "prob_bull": 0,
+            "prob_bear": 0,
+            "trend": "NEUTRAL",
+            "market_closed": True
+        }
 
 @app.get("/company/{symbol}")
 async def company(symbol: str):
     for c in COMPANIES:
         if c["symbol"] == symbol:
             return c
-
     raise HTTPException(status_code=404, detail="Company not found")
