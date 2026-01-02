@@ -20,7 +20,11 @@ export default function Dashboard() {
             key={p.symbol}
             className="p-4 bg-slate-800 rounded-xl border border-slate-700 mb-2"
           >
-            {p.symbol} — {p.quantity} shares @ ₹{p.price}
+            <div className="flex justify-between">
+              <span className="font-semibold">{p.symbol}</span>
+              <span>{p.quantity} shares</span>
+              <span>Avg Price: ₹{p.price}</span>
+            </div>
           </div>
         ))}
       </div>

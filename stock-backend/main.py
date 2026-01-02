@@ -7,6 +7,7 @@ import numpy as np
 from xgboost import XGBClassifier
 from companies import COMPANIES
 import ta
+import math
 
 app = FastAPI()
 
@@ -76,6 +77,18 @@ def make_features(df: pd.DataFrame):
     df.dropna(inplace=True)
     return df
 
+def clean_number(x):
+    """Return a JSON-safe float (no NaN/inf)."""
+    if x is None:
+        return 0.0
+    if isinstance(x, float) and (math.isnan(x) or math.isinf(x)):
+        return 0.0
+    try:
+        return float(x)
+    except:
+        return 0.0
+
+
 # ---------------- TRAIN MODEL ----------------
 def train():
     print("Training with multiple NSE stocks...")
@@ -126,6 +139,7 @@ def is_market_closed(df):
     else: last = last.tz_convert("UTC")
     return (pd.Timestamp.utcnow() - last).total_seconds() > 30 * 60
 
+
 # ---------------- ROUTES ----------------
 @app.get("/search")
 async def search(q: str = Query("")):
@@ -135,14 +149,9 @@ async def search(q: str = Query("")):
 
 @app.get("/market")
 async def get_market():
-    """
-    FAST market endpoint.
-    No Yahoo .info calls (no sector, no market cap fetch).
-    """
-
+   
     symbols = [c["symbol"] for c in COMPANIES]
 
-    # Bulk price download (this is fast + parallel)
     try:
         data = yf.download(
             symbols,
@@ -162,23 +171,24 @@ async def get_market():
         sym = c["symbol"]
         price = 0.0
 
-        # Extract price from bulk dataframe
         try:
+            # Multi-ticker format
             if len(symbols) > 1 and not data.empty and sym in data.columns.levels[0]:
                 series = data[sym]["Close"]
                 if not series.empty:
-                    price = float(series.iloc[-1])
-            elif not data.empty:
-                price = float(data["Close"].iloc[-1])
-        except:
-            pass
+                    price = series.iloc[-1]
+
+            # Single-ticker fallback
+            elif not data.empty and "Close" in data:
+                price = data["Close"].iloc[-1]
+
+        except Exception as e:
+            print(f"Price parse failed for {sym}: {e}")
 
         result.append({
             "name": c["name"],
             "symbol": sym,
-            "price": price,
-
-            # kept only if it already exists in COMPANIES (no API call)
+            "price": clean_number(price),     # 👈 JSON-safe
             "sector": c.get("sector"),
         })
 
@@ -198,6 +208,7 @@ async def chart_data(symbol: str, interval: str = "1d"):
     data["Date"] = data.iloc[:, 0].astype(str)
 
     return {"market_closed": closed, "data": data.to_dict(orient="records")}
+
 
 @app.get("/analyze/{symbol}")
 async def analyze(symbol: str):

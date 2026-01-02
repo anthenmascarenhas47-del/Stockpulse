@@ -10,6 +10,10 @@ export default function Stock() {
   const [company, setCompany] = useState(null);
   const [analysis, setAnalysis] = useState(null);
 
+  const [showModal, setShowModal] = useState(false);
+  const [tradeType, setTradeType] = useState("BUY");
+  const [quantity, setQuantity] = useState(1);
+
   useEffect(() => {
     setAnalysis(null);
     setCompany(null);
@@ -18,26 +22,71 @@ export default function Stock() {
     getAnalysis(symbol).then(setAnalysis);
   }, [symbol]);
 
-  // TEMP place-holder handlers (we wire real trading later)
-  const handleBuy = () => alert(`Buy ${symbol}`);
-  const handleSell = () => alert(`Sell ${symbol}`);
+  const handleConfirmTrade = () => {
+    if (!analysis) return;
+
+    const price = analysis.price;
+    let portfolio = JSON.parse(localStorage.getItem("portfolio") || "[]");
+
+    const existing = portfolio.find((p) => p.symbol === symbol);
+
+    if (tradeType === "BUY") {
+      if (existing) {
+        const totalCost =
+          existing.quantity * existing.price + quantity * price;
+        const newQty = existing.quantity + quantity;
+
+        existing.quantity = newQty;
+        existing.price = (totalCost / newQty).toFixed(2);
+      } else {
+        portfolio.push({
+          symbol,
+          quantity,
+          price: price.toFixed(2),
+        });
+      }
+    }
+
+    if (tradeType === "SELL") {
+      if (!existing || existing.quantity < quantity) {
+        alert("You don't have enough shares to sell.");
+        return;
+      }
+
+      existing.quantity -= quantity;
+
+      if (existing.quantity === 0) {
+        portfolio = portfolio.filter((p) => p.symbol !== symbol);
+      }
+    }
+
+    localStorage.setItem("portfolio", JSON.stringify(portfolio));
+
+    setShowModal(false);
+    setQuantity(1);
+  };
+
+  const handleBuy = () => {
+    setTradeType("BUY");
+    setShowModal(true);
+  };
+
+  const handleSell = () => {
+    setTradeType("SELL");
+    setShowModal(true);
+  };
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-200">
       <Navbar />
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
-
-        {/* ---------- HEADER ---------- */}
         <div className="grid grid-cols-3 items-center">
-
-          {/* LEFT — NAME */}
           <div>
             <h1 className="text-2xl font-bold">{company?.name}</h1>
             <p className="text-slate-400">{symbol}</p>
           </div>
 
-          {/* CENTER — BUY / SELL */}
           <div className="flex justify-center gap-4">
             <button
               onClick={handleBuy}
@@ -54,7 +103,6 @@ export default function Stock() {
             </button>
           </div>
 
-          {/* RIGHT — PRICE */}
           {analysis && (
             <div className="text-right">
               <div className="text-3xl font-bold">
@@ -67,10 +115,7 @@ export default function Stock() {
           )}
         </div>
 
-        {/* ---------- TOP GRID ---------- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* LEFT — AI ANALYSIS PANEL */}
           <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
             <h2 className="text-lg font-bold mb-3">AI Analysis</h2>
 
@@ -78,8 +123,6 @@ export default function Stock() {
 
             {analysis && (
               <div className="space-y-2">
-
-                {/* RECOMMENDATION */}
                 <p className="text-xl font-bold">
                   Recommendation:&nbsp;
                   <span
@@ -95,19 +138,23 @@ export default function Stock() {
                   </span>
                 </p>
 
-                <p>Bullish Probability: {(analysis.prob_bull * 100).toFixed(2)}%</p>
-                <p>Bearish Probability: {(analysis.prob_bear * 100).toFixed(2)}%</p>
+                <p>
+                  Bullish Probability:{" "}
+                  {(analysis.prob_bull * 100).toFixed(2)}%
+                </p>
+                <p>
+                  Bearish Probability:{" "}
+                  {(analysis.prob_bear * 100).toFixed(2)}%
+                </p>
               </div>
             )}
           </div>
 
-          {/* RIGHT — CHART */}
           <div className="lg:col-span-2 bg-slate-800 rounded-xl p-4 border border-slate-700">
             <CandleChart symbol={symbol} />
           </div>
         </div>
 
-        {/* ---------- COMPANY DETAILS SECTION ---------- */}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
           <h2 className="text-lg font-bold mb-3">Company Details</h2>
 
@@ -115,16 +162,72 @@ export default function Stock() {
 
           {company && (
             <div className="space-y-2">
-              <p><span className="text-slate-400">Name:</span> {company.name}</p>
-              <p><span className="text-slate-400">Symbol:</span> {company.symbol}</p>
+              <p>
+                <span className="text-slate-400">Name:</span> {company.name}
+              </p>
+              <p>
+                <span className="text-slate-400">Symbol:</span> {company.symbol}
+              </p>
               {company.sector && (
-                <p><span className="text-slate-400">Sector:</span> {company.sector}</p>
+                <p>
+                  <span className="text-slate-400">Sector:</span>{" "}
+                  {company.sector}
+                </p>
               )}
             </div>
           )}
         </div>
-
       </div>
+
+      {/* ----------- MODAL (fixed, high z-index) ----------- */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center">
+          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-96 space-y-4 shadow-2xl">
+            <h2 className="text-xl font-bold">
+              {tradeType === "BUY" ? "Buy" : "Sell"} {symbol}
+            </h2>
+
+            <div>
+              <label className="text-sm text-slate-400">Quantity</label>
+              <input
+                type="number"
+                min="1"
+                value={quantity}
+                onChange={(e) =>
+                  setQuantity(parseInt(e.target.value || 1))
+                }
+                className="mt-1 w-full bg-slate-700 rounded p-2 outline-none"
+              />
+            </div>
+
+            {analysis && (
+              <p className="text-slate-300">
+                Price: ₹{analysis.price.toFixed(2)}
+              </p>
+            )}
+
+            <div className="flex justify-between pt-3 gap-3">
+              <button
+                className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600"
+                onClick={() => setShowModal(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className={
+                  tradeType === "BUY"
+                    ? "px-4 py-2 rounded bg-green-600 hover:bg-green-700"
+                    : "px-4 py-2 rounded bg-red-600 hover:bg-red-700"
+                }
+                onClick={handleConfirmTrade}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
