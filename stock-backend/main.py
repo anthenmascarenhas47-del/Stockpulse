@@ -35,7 +35,8 @@ TRAIN_TICKERS = [
 
 FEATURES = ["ema9", "ema21", "ema_diff", "rsi", "atr", "vol_ratio"]
 
-# ---------------- HELPERS ----------------
+# functions
+
 def safe_download(symbol: str, interval: str, period: str):
     df = yf.download(symbol, interval=interval, period=period, progress=False)
 
@@ -89,7 +90,6 @@ def clean_number(x):
         return 0.0
 
 
-# ---------------- TRAIN MODEL ----------------
 def train():
     print("Training with multiple NSE stocks...")
     frames = []
@@ -140,7 +140,8 @@ def is_market_closed(df):
     return (pd.Timestamp.utcnow() - last).total_seconds() > 30 * 60
 
 
-# ---------------- ROUTES ----------------
+# routes
+
 @app.get("/search")
 async def search(q: str = Query("")):
     q = q.lower().strip()
@@ -149,7 +150,6 @@ async def search(q: str = Query("")):
 
 @app.get("/market")
 async def get_market():
-   
     symbols = [c["symbol"] for c in COMPANIES]
 
     try:
@@ -160,36 +160,40 @@ async def get_market():
             group_by="ticker",
             progress=False,
             threads=True,
+            timeout=10
         )
     except Exception as e:
-        print("Bulk download error:", e)
-        data = pd.DataFrame()
+        print(f"yfinance download failed: {e}")
+        return [] 
 
     result = []
-
+    
     for c in COMPANIES:
         sym = c["symbol"]
         price = 0.0
-
+        
         try:
-            # Multi-ticker format
-            if len(symbols) > 1 and not data.empty and sym in data.columns.levels[0]:
-                series = data[sym]["Close"]
-                if not series.empty:
-                    price = series.iloc[-1]
-
-            # Single-ticker fallback
-            elif not data.empty and "Close" in data:
-                price = data["Close"].iloc[-1]
+            if not data.empty:
+                if sym in data.columns:
+                    ticker_data = data[sym]
+                    
+                    if "Close" in ticker_data.columns:
+                        series = ticker_data["Close"].dropna()
+                        if not series.empty:
+                            price = series.iloc[-1]
+                
+                elif len(symbols) == 1 and "Close" in data.columns:
+                     price = data["Close"].iloc[-1]
 
         except Exception as e:
-            print(f"Price parse failed for {sym}: {e}")
+            print(f"Error parsing {sym}: {e}")
+            price = 0.0
 
         result.append({
             "name": c["name"],
             "symbol": sym,
-            "price": clean_number(price),     # 👈 JSON-safe
-            "sector": c.get("sector"),
+            "price": clean_number(price),   
+            "sector": c.get("sector", "Unknown"),
         })
 
     return result
@@ -233,7 +237,6 @@ async def analyze(symbol: str):
             "market_closed": closed
         }
     except Exception:
-        # Fallback if analysis fails (e.g. not enough data)
         return {
             "symbol": symbol,
             "price": 0,
