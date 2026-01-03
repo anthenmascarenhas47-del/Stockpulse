@@ -19,6 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+INDICES = [
+    {"name": "Nifty 50", "symbol": "^NSEI"},
+    {"name": "Bank Nifty", "symbol": "^NSEBANK"},
+    {"name": "Sensex", "symbol": "^BSESN"},
+]
+
 MODEL_DIR = "models"
 MODEL_PATH = os.path.join(MODEL_DIR, "model.pkl")
 FEATURES_PATH = os.path.join(MODEL_DIR, "features.pkl")
@@ -153,9 +159,10 @@ async def get_market():
     symbols = [c["symbol"] for c in COMPANIES]
 
     try:
+        # We already fetch 5d, so we have the history needed
         data = yf.download(
             symbols,
-            period="5d",
+            period="5d", 
             interval="1d",
             group_by="ticker",
             progress=False,
@@ -164,40 +171,50 @@ async def get_market():
         )
     except Exception as e:
         print(f"yfinance download failed: {e}")
-        return [] 
+        return []
 
     result = []
     
     for c in COMPANIES:
         sym = c["symbol"]
         price = 0.0
+        change = 0.0   # New field
+        percent = 0.0  # New field
         
         try:
             if not data.empty:
-                if sym in data.columns:
+                # Handle single vs multi-symbol structure
+                if len(symbols) > 1 and sym in data.columns:
                     ticker_data = data[sym]
+                else:
+                    ticker_data = data
+
+                if "Close" in ticker_data.columns:
+                    series = ticker_data["Close"].dropna()
                     
-                    if "Close" in ticker_data.columns:
-                        series = ticker_data["Close"].dropna()
-                        if not series.empty:
-                            price = series.iloc[-1]
-                
-                elif len(symbols) == 1 and "Close" in data.columns:
-                     price = data["Close"].iloc[-1]
+                    # LOGIC: Compare Today vs Yesterday
+                    if len(series) >= 2:
+                        price = series.iloc[-1]
+                        prev_close = series.iloc[-2]
+                        change = price - prev_close
+                        percent = (change / prev_close) * 100
+                    elif len(series) == 1:
+                        price = series.iloc[-1]
 
         except Exception as e:
-            print(f"Error parsing {sym}: {e}")
-            price = 0.0
+            # print(f"Error parsing {sym}: {e}") # Optional: silence errors for cleaner logs
+            pass
 
         result.append({
             "name": c["name"],
             "symbol": sym,
-            "price": clean_number(price),   
+            "price": clean_number(price),
+            "change": clean_number(change),    # Send to frontend
+            "percent": clean_number(percent),  # Send to frontend
             "sector": c.get("sector", "Unknown"),
         })
 
     return result
-
 
 @app.get("/chart_data/{symbol}")
 async def chart_data(symbol: str, interval: str = "1d"):
@@ -252,3 +269,63 @@ async def company(symbol: str):
         if c["symbol"] == symbol:
             return c
     raise HTTPException(status_code=404, detail="Company not found")
+
+
+@app.get("/indices")
+async def get_indices():
+    symbols = [i["symbol"] for i in INDICES]
+    
+    try:
+        # CHANGE: Fetch "5d" instead of "1d" to ensure we get previous closing price
+        data = yf.download(
+            symbols, 
+            period="5d", 
+            interval="1d", 
+            group_by="ticker", 
+            progress=False,
+            threads=True
+        )
+    except Exception:
+        return []
+
+    results = []
+    for i in INDICES:
+        sym = i["symbol"]
+        price = 0.0
+        change = 0.0
+        percent = 0.0
+
+        try:
+            if not data.empty:
+                # Handle MultiIndex vs Single Index structure
+                if isinstance(data.columns, pd.MultiIndex):
+                    ticker_df = data[sym]
+                else:
+                    ticker_df = data
+
+                # Get closing prices
+                if "Close" in ticker_df:
+                    hist = ticker_df["Close"].dropna()
+                    
+                    # LOGIC: We need at least 2 days to calc % change
+                    if len(hist) >= 2:
+                        price = hist.iloc[-1]       # Today's Price
+                        prev_close = hist.iloc[-2]  # Yesterday's Price
+                        
+                        change = price - prev_close
+                        percent = (change / prev_close) * 100
+                    
+                    elif len(hist) == 1:
+                        price = hist.iloc[-1]
+
+        except Exception as e:
+            print(f"Error parsing index {sym}: {e}")
+
+        results.append({
+            "name": i["name"],
+            "price": clean_number(price),
+            "change": clean_number(change),
+            "percent": clean_number(percent)
+        })
+        
+    return results

@@ -18,3 +18,13 @@ export const getMarket = () =>
 
 export const getCompany = (symbol) =>
   axios.get(`${API}/company/${symbol}`).then(r => r.data);
+
+export const getIndices = async () => {
+  try {
+    const res = await axios.get(`${API}/indices`);
+    return res.data;
+  } catch (error) {
+    console.error("Error fetching indices:", error);
+    return [];
+  }
+};
