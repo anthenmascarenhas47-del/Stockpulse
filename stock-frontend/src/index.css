@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* Small button utility for consistent style */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 6px rgba(99,102,241,0.12);
+  border-radius: 0.375rem;
+}

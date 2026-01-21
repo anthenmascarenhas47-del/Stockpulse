@@ -9,6 +9,7 @@ export default function Stock() {
 
   const [company, setCompany] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [selectedInterval, setSelectedInterval] = useState("1d");
 
   const [showModal, setShowModal] = useState(false);
   const [tradeType, setTradeType] = useState("BUY");
@@ -19,8 +20,8 @@ export default function Stock() {
     setCompany(null);
 
     getCompany(symbol).then(setCompany);
-    getAnalysis(symbol).then(setAnalysis);
-  }, [symbol]);
+    getAnalysis(symbol, selectedInterval).then(setAnalysis);
+  }, [symbol, selectedInterval]);
 
   const handleConfirmTrade = () => {
     if (!analysis) return;
@@ -117,7 +118,7 @@ export default function Stock() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-            <h2 className="text-lg font-bold mb-3">AI Analysis</h2>
+            <h2 className="text-lg font-bold mb-3">AI Analysis <span className="text-sm text-slate-400 ml-2">({selectedInterval})</span></h2>
 
             {!analysis && <p>Loading…</p>}
 
@@ -146,12 +147,32 @@ export default function Stock() {
                   Bearish Probability:{" "}
                   {(analysis.prob_bear * 100).toFixed(2)}%
                 </p>
+
+                <p>
+                  <span className="text-slate-400">Support:</span>{" "}
+                  ₹{(analysis.support || 0).toFixed(2)}
+                </p>
+                <p>
+                  <span className="text-slate-400">Resistance:</span>{" "}
+                  ₹{(analysis.resistance || 0).toFixed(2)}
+                </p>
+
+                {analysis.reason && analysis.reason.length > 0 && (
+                  <div>
+                    <span className="text-slate-400">Reasoning:</span>
+                    <ul className="list-disc list-inside text-sm mt-1">
+                      {analysis.reason.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           <div className="lg:col-span-2 bg-slate-800 rounded-xl p-4 border border-slate-700">
-            <CandleChart symbol={symbol} />
+            <CandleChart symbol={symbol} selectedInterval={selectedInterval} onIntervalChange={setSelectedInterval} />
           </div>
         </div>
 
