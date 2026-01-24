@@ -10,12 +10,12 @@ export default function CandleChart({ symbol, selectedInterval = "1d", onInterva
   const INTERVALS = [
     { value: "1m", label: "1 Minute" },
     { value: "5m", label: "5 Minutes" },
-    { value: "15m", label: "15 Minutes" },
+    { value: "10m", label: "10 Minutes" },
     { value: "30m", label: "30 Minutes" },
     { value: "1h", label: "1 Hour" },
     { value: "1d", label: "1 Day" },
-    { value: "1wk", label: "1 Week" },
-    { value: "1mo", label: "1 Month" },
+    { value: "7d", label: "7 Days" },
+    { value: "30d", label: "30 Days" },
   ];
 
   useEffect(() => {
