@@ -6,6 +6,8 @@ import pandas as pd
 from xgboost import XGBClassifier
 from companies import COMPANIES
 import ta
+from chatbot import ask_local_ai
+from pydantic import BaseModel
 
 # ================= APP ================= #
 
@@ -480,3 +482,49 @@ async def company(symbol: str):
         if c["symbol"] == symbol:
             return c
     raise HTTPException(status_code=404, detail="Company not found")
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    user_message = req.message.lower()
+
+    # Try to extract stock symbol from message
+    matched = None
+    for c in COMPANIES:
+        if c["symbol"].lower() in user_message or c["name"].lower() in user_message:
+            matched = c["symbol"]
+            break
+
+    context = ""
+    if matched:
+        try:
+            analysis = await analyze(matched)
+            context = f"""
+Stock: {matched}
+Price: {analysis['price']}
+Trend: {analysis['trend']}
+Bullish probability: {analysis['prob_bull']}
+Support: {analysis['support']}
+Resistance: {analysis['resistance']}
+Reasons:
+{chr(10).join(analysis['reason'])}
+"""
+        except:
+            pass
+
+    prompt = f"""
+You are a professional stock market assistant inside a trading app.
+
+User question: {req.message}
+
+{context}
+
+Respond clearly, beginner friendly, concise.
+Do not give financial advice disclaimers.
+"""
+
+    reply = ask_local_ai(prompt)
+    return {"reply": reply}
