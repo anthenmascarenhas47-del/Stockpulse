@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+yfinance
+pandas
+numpy
+xgboost
+ta
+joblib
+scikit-learn
+requests
+python-dotenv
+# Optional Upstox SDKs (install one if you want SDK-backed calls)
+# upstox
+# upstox-api
